@@ -1,0 +1,13 @@
+services:
+  web:
+    build: .
+    image: samplejson:1.0
+    container_name: samplejson
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

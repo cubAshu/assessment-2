@@ -1,0 +1,50 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>samplejson</title>
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+  button { padding: .5rem .8rem; margin: 0 .4rem .4rem 0; }
+  pre { background: #111827; color: #d1d5db; padding: 1rem; overflow: auto; max-height: 220px; }
+  .up { color: #15803d; } .down { color: #b91c1c; }
+</style>
+<h1>samplejson</h1>
+<p>Health: <b id="health">checking</b> | Requests: <b id="reqs">0</b> | Cache items: <b id="items">0</b></p>
+<p>
+  <button id="sample">Get sample JSON</button>
+  <button id="save">Save "hello" to cache</button>
+  <button id="clear">Clear cache</button>
+</p>
+<pre id="out">Press a button.</pre>
+<h3>Recent logs</h3>
+<pre id="logs"></pre>
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function call(method, url) {
+  const r = await fetch(url, { method });
+  $('out').textContent = method + ' ' + url + ' -> ' + r.status + '\n' + await r.text();
+  refresh();
+}
+
+async function refresh() {
+  try {
+    const h = await fetch('/health');
+    $('health').textContent = h.ok ? 'UP' : 'DOWN';
+    $('health').className = h.ok ? 'up' : 'down';
+    const s = await (await fetch('/api/stats')).json();
+    $('reqs').textContent = s.requests;
+    $('items').textContent = s.cache_items;
+    $('logs').textContent = (await (await fetch('/api/logs')).json()).join('\n');
+  } catch (e) {
+    $('health').textContent = 'DOWN';
+    $('health').className = 'down';
+  }
+}
+
+$('sample').onclick = () => call('GET', '/api/sample');
+$('save').onclick = () => call('POST', '/api/cache?key=note&value=hello');
+$('clear').onclick = () => call('DELETE', '/api/cache');
+refresh();
+setInterval(refresh, 2000);
+</script>
