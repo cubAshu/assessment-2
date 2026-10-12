@@ -1,0 +1,59 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check JavaScript syntax
+        run: node --check server.js
+
+      - name: Build image
+        run: docker build -t samplejson:ci .
+
+      - name: Smoke test (start the container, ask /health)
+        run: |
+          docker run -d --name smoke -p 3000:3000 samplejson:ci
+          for i in $(seq 1 15); do
+            if curl -fsS http://localhost:3000/health; then
+              echo
+              echo "container is healthy"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs smoke
+          exit 1
+
+  publish:
+    needs: build                      # only runs if the build job passed
+    if: github.event_name == 'push'   # not for pull requests
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write                 # allows pushing to ghcr.io
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Registry image names must be lower-case
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - name: Log in to ghcr.io with the built-in token
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: echo "$TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build and push (tagged with the commit)
+        run: |
+          docker build -t "$IMAGE:${GITHUB_SHA::7}" -t "$IMAGE:latest" .
+          docker push "$IMAGE:${GITHUB_SHA::7}"
+          docker push "$IMAGE:latest"
